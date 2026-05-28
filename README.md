@@ -1,83 +1,85 @@
-# StrategyAudit — On-Chain Audit for Quantitative Trading Strategies
+# StrategyAudit — 基于联盟链的量化策略合规审计原型系统
 
-A Hardhat-based Solidity prototype that demonstrates **blockchain-anchored compliance auditing** for the full lifecycle of quantitative trading strategy development, backtesting, and deployment. Built as a response to China's 2025 SSE/SZSE programmatic trading regulations.
+一个基于 Hardhat 的 Solidity 原型，演示量化策略全生命周期的**区块链锚定合规审计**。
+以 2025 年上交所/深交所程序化交易新规为监管背景，以真实 QMT 量化项目为案例。
 
-## Motivation
+## 动机
 
-Quantitative strategy development faces a fundamental trust problem:
-- **p-hacking / data snooping**: backtest parameters can be tuned post-hoc without trace
-- **data versioning chaos**: same strategy run against different data versions yields irreproducible results
-- **compliance records are mutable**: internal audit logs can be altered or deleted without detection
+量化策略研发存在三个核心信任问题：
 
-This project uses a **permissioned blockchain** approach — on-chain SHA-256 hashes + off-chain raw data — to create tamper-proof audit trails for the strategy lifecycle, without exposing proprietary strategy logic.
+- **p-hacking / data snooping**：回测参数可在事后调整而不留痕迹
+- **数据版本混乱**：同一策略在不同数据版本上运行，结果不可复现
+- **合规记录可篡改**：内部审计日志可以被事后修改或删除
 
-## Architecture
+本方案采用**联盟链 + 链下原始数据 + 链上 SHA-256 哈希**的混合存证范式，在不暴露策略逻辑的前提下，为策略生命周期创建防篡改审计轨迹。
+
+## 架构
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Participant Layer                                       │
-│  Researcher | Compliance Officer | Risk Controller       │
-│  Auditor | Regulator | Admin                            │
-├─────────────────────────────────────────────────────────┤
-│  Consensus Layer (PBFT / Raft — configurable)            │
-├─────────────────────────────────────────────────────────┤
-│  Smart Contract Layer (StrategyAudit.sol)                │
-│  registerStrategy | submitBacktest | verifyBacktest     │
-│  addComplianceCheck | recordRiskEvent | updateStatus    │
-├─────────────────────────────────────────────────────────┤
-│  Data Layer                                              │
-│  Off-chain: raw files (CSV, YAML, JSON, Python)          │
-│  On-chain: SHA-256 hashes + metadata                    │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  参与者节点层                                              │
+│  Researcher | ComplianceOfficer | RiskController          │
+│  Auditor | Regulator | Admin                             │
+├──────────────────────────────────────────────────────────┤
+│  共识层 (PBFT / Raft — 可配置)                             │
+├──────────────────────────────────────────────────────────┤
+│  智能合约层 (StrategyAudit.sol)                            │
+│  registerStrategy | submitBacktest | verifyBacktest       │
+│  addComplianceCheck | recordRiskEvent | updateStatus      │
+├──────────────────────────────────────────────────────────┤
+│  数据层                                                   │
+│  链下: 原始文件 (CSV, YAML, JSON, Python)                 │
+│  链上: SHA-256 哈希值 + 元数据                             │
+└──────────────────────────────────────────────────────────┘
 ```
 
-## Smart Contract: StrategyAudit.sol
+## 智能合约 (StrategyAudit.sol)
 
-### Role-Based Access Control
-| Role | Permissions |
+### 基于角色的访问控制 (RBAC)
+| 角色 | 权限 |
 |---|---|
-| Admin | All functions, role assignment |
-| Researcher | `registerStrategy`, `submitBacktest` |
-| ComplianceOfficer | `addComplianceCheck` |
-| RiskController | `recordRiskEvent` |
-| Auditor | `verifyBacktest` |
-| Regulator | Read-only queries |
+| Admin（管理员） | 所有函数 + 角色分配 |
+| Researcher（策略研发方） | `registerStrategy`、`submitBacktest` |
+| ComplianceOfficer（合规审核方） | `addComplianceCheck` |
+| RiskController（风控方） | `recordRiskEvent` |
+| Auditor（外部审计方） | `verifyBacktest` |
+| Regulator（监管方） | 只读查询 |
 
-### Mandatory Compliance Checklist (6 items)
-1. 策略类型报备 (Strategy type registration)
-2. 数据来源说明 (Data source declaration)
-3. 回测参数锁定 (Backtest parameter lock)
-4. 风控阈值配置 (Risk control threshold config)
-5. 交易系统测试 (Trading system test)
-6. 高频交易额外申报 (High-frequency trading declaration)
+### 预设必选合规清单（6 项）
+1. 策略类型报备
+2. 数据来源说明
+3. 回测参数锁定
+4. 风控阈值配置
+5. 交易系统测试
+6. 高频交易额外申报
 
-All 6 items must be submitted AND passed before the contract auto-transitions the strategy to `ComplianceApproved` status.
+六项全部提交且全部通过后，合约自动将策略状态更新为 `ComplianceApproved`。
 
-### Strategy Lifecycle States
+### 策略生命周期状态
 ```
 Created → Backtested → ComplianceApproved → Live → Paused → Terminated
 ```
 
-## Tech Stack
+## 技术栈
 
-- **Solidity** 0.8.20 (smart contract)
-- **Hardhat** v2.28 (development & testing)
-- **web3.py** 7.16 (Python SDK)
-- **Node.js** v22 (Hardhat runtime)
+- **Solidity** 0.8.20（智能合约）
+- **Hardhat** v2.28（开发与测试框架）
+- **web3.py** 7.16（Python SDK）
+- **Node.js** v22（Hardhat 运行时）
 
-## Quick Start
+## 快速开始
 
 ```bash
-# Install dependencies
+# 安装依赖
 npm install
 
-# Start local Hardhat node
+# 启动本地 Hardhat 节点
 npx hardhat node
 
-# In another terminal: deploy contract
+# 另开终端：部署合约
 npx hardhat run scripts/deploy.js --network localhost
 
-# Run the demo with real data
+# 运行 Demo（使用 QMT 真实数据）
 python3 scripts/audit_demo.py \
   --qmt-root /path/to/quant/research/project \
   --contract 0x5FbDB2315678afecb367f032d93F642f64180aa3 \
@@ -85,39 +87,40 @@ python3 scripts/audit_demo.py \
 ```
 
 ```bash
-# Run tests (30 test cases)
+# 运行测试（30 个测试用例）
 npx hardhat test
 ```
 
-## Demo Results
+## Demo 结果
 
-Using real quant research data (144 Alpha factors, LightGBM model, 163 experiment configs):
+使用真实 QMT 项目数据（144 个 Alpha 因子、LightGBM 模型、163 组实验配置）：
 
-| Metric | Value |
+| 指标 | 值 |
 |---|---|
-| Total Return | 70.03% |
-| Annual Return | 16.83% |
-| Sharpe Ratio | 1.0928 |
-| Max Drawdown | -11.99% |
-| IC (mean) | 3.64% |
+| 累计收益 | 70.03% |
+| 年化收益 | 16.83% |
+| 夏普比率 | 1.0928 |
+| 最大回撤 | -11.99% |
+| IC 均值 | 3.64% |
 
-All data successfully hashed on-chain, compliance auto-approved after 6 checks, hash verification confirmed.
+所有数据成功上链存证，6 项合规检查全部通过后自动批准，哈希一致性验证通过。
 
-## Paper
+## 配套论文
 
-This prototype accompanies a Chinese-language academic paper:
-- **Title**: 基于联盟链的量化策略可信回测与程序化交易合规审计机制研究
-- **Content**: Full system design, RBAC model, mandatory compliance checklist, real-data case study, and discussion of limitations (environment reproducibility, look-ahead bias, factor computation verification, transaction cost assumptions)
+本原型系统配套中文学术论文：
+- **标题**: 基于联盟链的量化策略可信回测与程序化交易合规审计机制研究
+- **内容**: 系统架构设计、RBAC 权限模型、必选合规清单机制、真实数据案例、局限性讨论（环境复现、未来函数、因子验证、交易成本假设）
 
-## Limitations
+## 当前限制
 
-This prototype achieves **hash anchoring + compliance workflow automation**. It does NOT yet achieve full "process trust" — specifically:
-1. Backtest environment reproducibility (Docker image hashing)
-2. Look-ahead bias detection (data time-window cross-validation)
-3. Factor computation intermediate result verification
-4. Transaction cost reasonableness validation
+本原型实现了**哈希存证 + 合规流程自动化**，但尚未达到完整的"过程可信"：
 
-These are documented as future work in the paper.
+1. 回测环境可复现性（Docker 镜像哈希）
+2. 未来函数检测（数据时间窗口交叉验证）
+3. 因子计算中间结果验证
+4. 交易成本假设合理性校验
+
+以上内容在论文第四节中有详细讨论。
 
 ## License
 
